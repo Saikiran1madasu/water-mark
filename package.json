@@ -1,0 +1,1 @@
+{"name":"clearframe","version":"1.0.0","private":true,"scripts":{"start":"node server.mjs","check":"node --check server.mjs && node --check dist/app.js"},"engines":{"node":">=20"}}
