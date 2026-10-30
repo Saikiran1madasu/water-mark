@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Saikiran1madasu. All rights reserved. See LICENSE.
 """Confidence-gated reconstruction for repeating and smoothly shaded backgrounds."""
 import cv2
 import numpy as np

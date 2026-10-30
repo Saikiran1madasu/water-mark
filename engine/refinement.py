@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Saikiran1madasu. All rights reserved. See LICENSE.
 """Local motion refinement and deterministic exemplar texture synthesis.
 
 Custom pipeline using OpenCV numerical primitives; no external model weights.

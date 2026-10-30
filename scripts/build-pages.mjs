@@ -11,5 +11,7 @@ const output=path.join(root,'.pages');
 fs.rmSync(output,{recursive:true,force:true});
 fs.cpSync(path.join(root,'dist'),output,{recursive:true});
 fs.writeFileSync(path.join(output,'config.js'),`window.MSK_CONFIG = ${JSON.stringify({apiBase:url?.origin||'',editorOnly})};\n`);
+fs.copyFileSync(path.join(root,'LICENSE'),path.join(output,'LICENSE'));
+fs.copyFileSync(path.join(root,'THIRD_PARTY_NOTICES.md'),path.join(output,'THIRD_PARTY_NOTICES.md'));
 fs.writeFileSync(path.join(output,'.nojekyll'),'');
 console.log('GitHub Pages dashboard prepared in .pages');

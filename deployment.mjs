@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Saikiran1madasu. All rights reserved. See LICENSE.
 import fs from 'node:fs';
 import path from 'node:path';
 

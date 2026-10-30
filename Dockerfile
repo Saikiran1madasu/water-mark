@@ -6,8 +6,10 @@ COPY --from=node /usr/local/bin/node /usr/local/bin/node
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg libstdc++6 gosu \
     && rm -rf /var/lib/apt/lists/* \
     && python -m venv /opt/venv
+LABEL org.opencontainers.image.authors="Saikiran1madasu" \
+      org.opencontainers.image.source="https://github.com/Saikiran1madasu/water-mark"
 WORKDIR /app
-COPY requirements.txt ./
+COPY requirements.txt LICENSE THIRD_PARTY_NOTICES.md ./
 RUN /opt/venv/bin/pip install -r requirements.txt
 COPY --chown=10001:10001 server.mjs deployment.mjs package.json ./
 COPY --chown=10001:10001 engine ./engine

@@ -1,5 +1,7 @@
 # MSK Watermark Remover
 
+Copyright (c) 2026 Saikiran1madasu. All rights reserved. Original project materials are proprietary; see [LICENSE](LICENSE) and [third-party notices](THIRD_PARTY_NOTICES.md).
+
 Custom temporal video repair engine with the MSK dashboard. No cloned removal repository, model weights, remote inference service or FFmpeg delogo in the application pipeline. Third-party numerical, computer vision and media libraries are still required; see engine/DESIGN.md.
 
 ## Setup and run

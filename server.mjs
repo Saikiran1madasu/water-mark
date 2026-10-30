@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Saikiran1madasu. All rights reserved. See LICENSE.
 import http from 'node:http';
 import {spawn} from 'node:child_process';
 import fs from 'node:fs';

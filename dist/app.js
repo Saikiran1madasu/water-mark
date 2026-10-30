@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Saikiran1madasu. All rights reserved. See LICENSE.
 const $=id=>document.getElementById(id), video=$('source-video'), canvas=$('selection'), ctx=canvas.getContext('2d');
 const engineBase=String(window.MSK_CONFIG?.apiBase||'').replace(/\/$/,'');
 let uploadLimit=500*1024*1024;

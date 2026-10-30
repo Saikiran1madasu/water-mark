@@ -13,5 +13,7 @@
   },
   "engines": {
     "node": ">=20"
-  }
+  },
+  "author": "Saikiran1madasu",
+  "license": "UNLICENSED"
 }

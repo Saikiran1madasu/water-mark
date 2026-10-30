@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Saikiran1madasu. All rights reserved. See LICENSE.
 """MSK temporal repair v2. Original orchestration and reconstruction algorithm.
 
 No model weights, repository code, FFmpeg delogo, or remote inference.

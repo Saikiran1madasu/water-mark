@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Saikiran1madasu. All rights reserved. See LICENSE.
 """Conservative light/dark overlay footprint estimation against a validated plate.
 
 This protects observed pixels in a selection. It is not general logo detection.
