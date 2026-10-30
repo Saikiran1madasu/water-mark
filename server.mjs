@@ -48,7 +48,7 @@ const server=http.createServer(async(req,res)=>{
  const download=url.pathname.match(/^\/outputs\/([a-f0-9-]+)\.mp4$/);
  let file;if(download){const j=jobs.get(download[1]);if(!j||j.status!=='completed')return json(res,404,{error:'Output unavailable.'});file=j.output;}else{file=path.join(root,'dist',url.pathname==='/'?'index.html':decodeURIComponent(url.pathname));if(!file.startsWith(path.join(root,'dist')+path.sep))return json(res,403,{error:'Forbidden'});}
  if(!fs.existsSync(file)||!fs.statSync(file).isFile())return json(res,404,{error:'Not found'});
- const size=fs.statSync(file).size,type=({'.html':'text/html','.js':'text/javascript','.css':'text/css','.mp4':'video/mp4'})[path.extname(file)]||'application/octet-stream';
+ const size=fs.statSync(file).size,type=({'.html':'text/html','.js':'text/javascript','.css':'text/css','.mp4':'video/mp4','.svg':'image/svg+xml'})[path.extname(file)]||'application/octet-stream';
  const range=req.headers.range;
  if(range){const m=/^bytes=(\d+)-(\d*)$/.exec(range);if(!m)return res.writeHead(416).end();const start=Number(m[1]),end=m[2]?Math.min(Number(m[2]),size-1):size-1;if(start>end||start>=size)return res.writeHead(416,{'Content-Range':`bytes */${size}`}).end();res.writeHead(206,{'Content-Type':type,'Content-Range':`bytes ${start}-${end}/${size}`,'Accept-Ranges':'bytes','Content-Length':end-start+1});fs.createReadStream(file,{start,end}).pipe(res);}else{res.writeHead(200,{'Content-Type':type,'Content-Length':size,'Accept-Ranges':'bytes'});fs.createReadStream(file).pipe(res);}
  }catch(e){if(!res.headersSent)json(res,500,{error:e.message});}
