@@ -19,22 +19,42 @@ async function processJob(job){
  if(Number(video.tags?.rotate||0)!==0||video.side_data_list?.some(s=>s.rotation))throw Error('Please export this rotated video upright before processing.');
  if(video.pix_fmt?.includes('10')||video.color_transfer==='smpte2084'||video.color_transfer==='arib-std-b67')throw Error('Please convert HDR/10-bit video to SDR first. This engine currently supports 8-bit SDR.');
  job.status='processing';job.duration=Number(meta.format.duration)||0;
+ let workingInput=job.input;
+ if(job.preview){
+   const start=Math.min(job.previewStart,Math.max(0,job.duration-3)),length=Math.min(3,job.duration-start);
+   if(!(length>0))throw Error('Could not determine preview duration.');
+   const at=t=>{const keys=job.keyframes;if(!keys.length)return job.box;if(t<=keys[0].time)return keys[0].box;for(let i=1;i<keys.length;i++){const a=keys[i-1],b=keys[i];if(t<=b.time){const f=(t-a.time)/(b.time-a.time);return Object.fromEntries(['x','y','w','h'].map(k=>[k,a.box[k]*(1-f)+b.box[k]*f]));}}return keys.at(-1).box;};
+   if(job.keyframes.length){const keys=[{time:0,box:at(start)},...job.keyframes.filter(k=>k.time>start&&k.time<start+length).map(k=>({time:k.time-start,box:k.box})),{time:length,box:at(start+length)}];job.box=keys[0].box;job.keyframes=keys;}
+   job.previewInput=path.join(data,`${job.id}.preview.mp4`);job.message='Preparing a 3-second preview';
+   await command('ffmpeg',['-y','-ss',String(start),'-i',job.input,'-t',String(length),'-map','0:v:0','-map','0:a?','-c:v','libx264','-preset','fast','-crf','12','-fps_mode','vfr','-c:a','aac',job.previewInput]);
+   workingInput=job.previewInput;job.previewRange={start,duration:length};
+ }
  job.intermediate=path.join(data,`${job.id}.repaired.mp4`);
- const args=[path.join(root,'engine','temporal.py'),'--input',job.input,'--output',job.intermediate,'--box',JSON.stringify(job.box),'--quality',job.quality==='high'?'high':'standard','--radius',String(job.radius),'--margin',String(job.margin),'--keyframes',JSON.stringify(job.keyframes)];
+ const args=[path.join(root,'engine','temporal.py'),'--input',workingInput,'--output',job.intermediate,'--box',JSON.stringify(job.box),'--quality',job.quality==='high'?'high':'standard','--radius',String(job.radius),'--margin',String(job.margin),'--keyframes',JSON.stringify(job.keyframes),'--mode',job.mode];
  await new Promise((resolve,reject)=>{const p=spawn(python,args);let err='',buffer='',engineError='';job.process=p;
  p.stdout.on('data',chunk=>{buffer+=chunk;const lines=buffer.split('\n');buffer=lines.pop();for(const line of lines){try{const event=JSON.parse(line);if(event.error)engineError=event.error;job.progress=event.progress??job.progress;job.message=event.stage==='repaired'?'Restoring audio':`Motion recovery · ${event.frames||0} frames`;if(event.temporalCoverage!==undefined)job.coverage=event.temporalCoverage;if(event.stats)job.stats=event.stats;}catch{}}});
  p.stderr.on('data',x=>err=(err+x).slice(-4000));p.on('error',reject);p.on('close',c=>c===0?resolve():reject(Error(engineError||err||'Temporal repair failed.')));});
  job.message='Restoring audio and finalizing export';job.progress=94;
  // Preserve the repaired video's presentation timestamps; audio is mapped from the original.
- await command('ffmpeg',['-y','-i',job.intermediate,'-i',job.input,'-map','0:v:0','-map','1:a?','-map_metadata','1','-metadata:s:v:0','rotate=0','-c:v','copy','-c:a','aac','-b:a','192k','-movflags','+faststart',job.output]);
- job.status='completed';job.progress=100;job.message='Export complete';
+ await command('ffmpeg',['-y','-i',job.intermediate,'-i',workingInput,'-map','0:v:0','-map','1:a?','-map_metadata','1','-metadata:s:v:0','rotate=0','-c:v','copy','-c:a','aac','-b:a','192k','-movflags','+faststart',job.output]);
+ if(job.stats)Object.assign(job.stats,{preview:job.preview,previewRange:job.previewRange});
+ job.status='completed';job.progress=100;job.message=job.preview?'Preview complete':'Export complete';
  }catch(e){job.status='failed';job.error=e.message;fs.rm(job.output,{force:true},()=>{});}
- finally{delete job.process;fs.rm(job.input,{force:true},()=>{});if(job.intermediate)fs.rm(job.intermediate,{force:true},()=>{});}
+ finally{delete job.process;fs.rm(job.input,{force:true},()=>{});if(job.intermediate)fs.rm(job.intermediate,{force:true},()=>{});if(job.previewInput)fs.rm(job.previewInput,{force:true},()=>{});}
 }
 const server=http.createServer(async(req,res)=>{
  try{
  const url=new URL(req.url,'http://localhost');
- if(req.method==='GET'&&url.pathname==='/api/health')return json(res,200,{available,engine:'MSK Temporal Repair v1',version:1});
+ const origin=req.headers.origin;
+ const approvedOrigins=new Set(['https://clearframe-video-studio-oct30.learning-lea-6584.chatgpt.site',`http://localhost:${port}`,`http://127.0.0.1:${port}`]);
+ if(origin){
+   if(!approvedOrigins.has(origin))return json(res,403,{error:'This origin is not allowed to use the local engine.'});
+   res.setHeader('Access-Control-Allow-Origin',origin);res.setHeader('Vary','Origin');
+   res.setHeader('Access-Control-Allow-Private-Network','true');
+ }
+ if(req.method==='OPTIONS'){res.writeHead(204,{'Access-Control-Allow-Methods':'GET, POST, OPTIONS','Access-Control-Allow-Headers':'Content-Type, Range','Access-Control-Max-Age':'600'});return res.end();}
+
+ if(req.method==='GET'&&url.pathname==='/api/health')return json(res,200,{available,engine:'MSK Temporal Repair v2',version:2});
  if(req.method==='POST'&&url.pathname==='/api/jobs'){
  if(!available)return json(res,503,{error:'Local engine dependencies are missing. Install requirements.txt in .venv and ensure FFmpeg is available.'});
  if([...jobs.values()].some(j=>['uploading','inspecting','processing'].includes(j.status)))return json(res,409,{error:'Another video is processing. Please wait.'});
@@ -48,7 +68,9 @@ const server=http.createServer(async(req,res)=>{
  if(keyframes.some((k,i)=>i>0&&k.time===keyframes[i-1].time))return json(res,400,{error:'Each keyframe needs a different time.'});
  const radius=Number(url.searchParams.get('radius')||12),margin=Number(url.searchParams.get('margin')||3);
  if(!Number.isInteger(radius)||radius<2||radius>24||!Number.isInteger(margin)||margin<0||margin>12)return json(res,400,{error:'Invalid context or mask margin.'});
- const id=randomUUID(),job={id,status:'uploading',progress:0,box,radius,margin,keyframes,quality:url.searchParams.get('quality'),input:path.join(data,`${id}.input`),output:path.join(data,`${id}.mp4`)};jobs.set(id,job);
+ const mode=url.searchParams.get('mode')||'detail',preview=url.searchParams.get('preview')==='1',previewStart=Number(url.searchParams.get('previewStart')||0);
+ if(!['detail','balanced'].includes(mode)||!Number.isFinite(previewStart)||previewStart<0||previewStart>86400)return json(res,400,{error:'Invalid repair mode or preview time.'});
+ const id=randomUUID(),job={id,status:'uploading',progress:0,box,radius,margin,keyframes,mode,preview,previewStart,quality:url.searchParams.get('quality'),input:path.join(data,`${id}.input`),output:path.join(data,`${id}.mp4`)};jobs.set(id,job);
  let bytes=0;const writer=fs.createWriteStream(job.input);let failed=false;
  req.on('data',chunk=>{bytes+=chunk.length;if(bytes>500*1024*1024){failed=true;req.destroy();writer.destroy();fs.rm(job.input,{force:true},()=>{});jobs.delete(id);}});
  req.pipe(writer);req.on('aborted',()=>{failed=true;writer.destroy();jobs.delete(id);fs.rm(job.input,{force:true},()=>{});});writer.on('error',()=>{failed=true;jobs.delete(id);if(!res.headersSent)json(res,500,{error:'Could not save upload.'});});

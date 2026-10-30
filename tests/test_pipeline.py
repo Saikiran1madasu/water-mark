@@ -77,6 +77,35 @@ class Pipeline(unittest.TestCase):
                     baseline=[np.abs(f.to_ndarray(format='bgr24')[72:94,144:168].astype(float)-clean[i][72:94,144:168]).mean() for i,f in enumerate(old_frames)]
                 print(f'\nHTTP benchmark: MSK MAE={np.mean(errors):.2f}; previous delogo MAE={np.mean(baseline):.2f}; coverage={status["stats"]["temporalCoverage"]}%')
                 self.assertLess(np.mean(errors),np.mean(baseline)*.7)
+                origin='https://clearframe-video-studio-oct30.learning-lea-6584.chatgpt.site'
+                cors=urllib.request.urlopen(urllib.request.Request(address+'/api/health',headers={'Origin':origin}))
+                self.assertEqual(cors.headers['Access-Control-Allow-Origin'],origin)
+                self.assertEqual(json.load(cors)['version'],2)
+                with self.assertRaises(urllib.error.HTTPError) as denied:
+                    urllib.request.urlopen(urllib.request.Request(address+'/api/health',headers={'Origin':'https://unrelated.example'}))
+                self.assertEqual(denied.exception.code,403);denied.exception.close()
+                preflight=urllib.request.urlopen(urllib.request.Request(address+'/api/jobs',method='OPTIONS',headers={'Origin':origin,'Access-Control-Request-Method':'POST','Access-Control-Request-Headers':'content-type','Access-Control-Request-Private-Network':'true'}))
+                self.assertEqual(preflight.status,204)
+                self.assertEqual(preflight.headers['Access-Control-Allow-Private-Network'],'true')
+                # A longer source makes the preview seek and trim observable.
+                longer=temp/'longer.mp4'
+                subprocess.run(['ffmpeg','-v','error','-y','-stream_loop','3','-i',str(source),'-c','copy',str(longer)],check=True)
+                keys=[{'time':0,'box':box},{'time':5,'box':box}]
+                preview_url=address+'/api/jobs?'+urllib.parse.urlencode({'box':json.dumps(box),'keyframes':json.dumps(keys),'quality':'high','mode':'balanced','preview':'1','previewStart':'1','margin':0,'radius':6})
+                preview_response=json.load(urllib.request.urlopen(urllib.request.Request(preview_url,data=longer.read_bytes(),headers={'Content-Type':'video/mp4'})))
+                for _ in range(500):
+                    ps=json.load(urllib.request.urlopen(address+'/api/jobs/'+preview_response['id']))
+                    if ps['status'] in ['failed','completed']:break
+                    time.sleep(.2)
+                self.assertEqual(ps['status'],'completed',ps)
+                self.assertTrue(ps['stats']['preview']);self.assertEqual(ps['stats']['maskMode'],'keyframed')
+                self.assertAlmostEqual(ps['stats']['previewRange']['start'],1,places=2)
+                preview_file=temp/'preview.mp4';preview_file.write_bytes(urllib.request.urlopen(address+'/outputs/'+preview_response['id']+'.mp4').read())
+                with av.open(str(preview_file)) as preview_media:
+                    self.assertEqual(len(preview_media.streams.audio),1)
+                    self.assertLessEqual(float(preview_media.duration/av.time_base),3.15)
+                    self.assertGreater(float(preview_media.duration/av.time_base),2.9)
+                print('Preview trim, audio, shifted keyframes, mode selection and origin-restricted browser bridge: PASS')
                 req=urllib.request.Request(address+'/api/jobs?box=%7B%7D',data=b'bad',headers={'Content-Type':'video/mp4'})
                 with self.assertRaises(urllib.error.HTTPError) as failure:urllib.request.urlopen(req)
                 self.assertEqual(failure.exception.code,400)
@@ -89,5 +118,6 @@ class Pipeline(unittest.TestCase):
                 if 'response' in locals():
                     artifact=ROOT/'.runtime'/(response['id']+'.mp4')
                     artifact.unlink(missing_ok=True)
+                if 'preview_response' in locals():(ROOT/'.runtime'/(preview_response['id']+'.mp4')).unlink(missing_ok=True)
 
 if __name__=='__main__':unittest.main()
