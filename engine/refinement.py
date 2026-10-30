@@ -160,3 +160,59 @@ def select_references(neighbors,target,limit=12):
         positions=np.unique(np.rint(np.linspace(0,len(group)-1,max(1,limit//2))).astype(int))
         selected.extend(group[i] for i in positions)
     return selected[:limit]
+
+
+def masked_translation(target,source,mask):
+    """Match a clean local surround, excluding both frames' watermark pixels.
+
+    Feature tracking can select the static camera layer when the content under
+    the logo moves. Masked correlation provides an independent local proposal.
+    """
+    gh,gw=target.gray.shape;h,w=mask.shape
+    tm=cv2.resize(mask,(gw,gh),interpolation=cv2.INTER_NEAREST)
+    ys,xs=np.where(tm>0)
+    if not len(xs):return None
+    pad=max(16,min(48,max(int(np.ptp(xs)),int(np.ptp(ys)))))
+    x0=max(0,int(xs.min())-pad);x1=min(gw,int(xs.max())+1+pad)
+    y0=max(0,int(ys.min())-pad);y1=min(gh,int(ys.max())+1+pad)
+    template=target.gray[y0:y1,x0:x1].astype(np.float32)
+    weights=(tm[y0:y1,x0:x1]==0).astype(np.float32)
+    if weights.sum()<64 or float(template[weights>0].std())<5:return None
+    reach=48
+    sx0=max(0,x0-reach);sx1=min(gw,x1+reach)
+    sy0=max(0,y0-reach);sy1=min(gh,y1+reach)
+    search=source.gray[sy0:sy1,sx0:sx1].astype(np.float32)
+    source_mask=source.mask if source.mask is not None else mask
+    sm=cv2.resize(source_mask,(gw,gh),interpolation=cv2.INTER_NEAREST)
+    sm=cv2.dilate(sm,np.ones((3,3),np.uint8))
+    valid=(sm[sy0:sy1,sx0:sx1]==0).astype(np.float32)
+    correlate=lambda a,b:cv2.matchTemplate(np.ascontiguousarray(a),np.ascontiguousarray(b),cv2.TM_CCORR)
+    count=correlate(valid,weights);den=np.maximum(count,1)
+    st=correlate(valid,template*weights)
+    ss=correlate(search*valid,weights)
+    cross=correlate(search*valid,template*weights)
+    t2=correlate(valid,template*template*weights)
+    s2=correlate(search*search*valid,weights)
+    cost=np.maximum(0,(s2+t2-2*cross-(ss-st)**2/den)/den)
+    cost[count<weights.sum()*.65]=np.inf
+    py,px=np.unravel_index(np.argmin(cost),cost.shape)
+    if not np.isfinite(cost[py,px]) or cost[py,px]>18**2:return None
+    dx=float(px+sx0-x0);dy=float(py+sy0-y0)
+    for axis in (0,1):
+        if axis==0 and 0<px<cost.shape[1]-1:a,b,c=cost[py,px-1:px+2]
+        elif axis==1 and 0<py<cost.shape[0]-1:a,b,c=cost[py-1:py+2,px]
+        else:continue
+        divisor=float(a-2*b+c)
+        offset=float(np.clip(.5*(a-c)/divisor,-.5,.5)) if np.isfinite(divisor) and divisor>1 else 0
+        if axis==0:dx+=offset
+        else:dy+=offset
+    return np.array([[1,0,dx*w/gw],[0,1,dy*h/gh]],np.float32)
+
+
+def finish_boundary(original,patch,mask,feather=0):
+    """Blend only within the explicitly expanded safety margin, never the core."""
+    if feather<=0:return patch
+    distance=cv2.distanceTransform(mask,cv2.DIST_L2,cv2.DIST_MASK_PRECISE)
+    alpha=np.clip(distance/max(1,feather),0,1)[:,:,None]
+    mixed=original.astype(np.float32)*(1-alpha)+patch.astype(np.float32)*alpha
+    return np.clip(mixed,0,255).astype(np.uint8)

@@ -16,7 +16,7 @@ from pathlib import Path
 import av
 import cv2
 import numpy as np
-from refinement import motion_models, sample, boundary_score, dense_refine, exemplar_fill, select_references
+from refinement import motion_models, sample, boundary_score, dense_refine, exemplar_fill, select_references, masked_translation, finish_boundary
 
 cv2.setNumThreads(2)
 
@@ -116,7 +116,7 @@ def align(target, source, mask, features=None):
     return matrix
 
 
-def repair(target, references, mask, detail=True, previous=None, diagnostics=None):
+def repair(target, references, mask, detail=True, previous=None, diagnostics=None, feather=0):
     """Locally align clean observations, reject occlusions, synthesize only gaps."""
     ys,xs = np.where(mask>0)
     x0,x1,y0,y1 = int(xs.min()),int(xs.max()+1),int(ys.min()),int(ys.max()+1)
@@ -132,16 +132,20 @@ def repair(target, references, mask, detail=True, previous=None, diagnostics=Non
         if source.scene!=target.scene:continue
         source_mask=source.mask if source.mask is not None else mask
         models=motion_models(target,source,mask)
+        translation=masked_translation(target,source,mask)
+        if translation is not None:models.append(translation)
         best=None
         for matrix in models:
             warped,valid=sample(source,matrix,rect,source_mask)
             judged=boundary_score(roi,warped,valid,ring)
             if judged is None:continue
             corrected,error,score=judged
-            if best is None or score<best[0]:best=(score,corrected,error,valid,matrix)
+            coverage=float(np.mean(valid[local_mask>0]))
+            ranking=score+8*(1-coverage)
+            if best is None or ranking<best[-1]:best=(score,corrected,error,valid,matrix,ranking)
         if best is None:continue
-        score,corrected,error,valid,matrix=best
-        if detail and score>4 and dense_attempts<4:
+        score,corrected,error,valid,matrix,_=best
+        if detail and score>8 and dense_attempts<4:
             dense_attempts+=1
             refined=dense_refine(target,source,matrix,mask,rect)
             if refined is not None:
@@ -165,13 +169,18 @@ def repair(target, references, mask, detail=True, previous=None, diagnostics=Non
             deviation=np.nanmedian(np.abs(stack-median),axis=0)
         support=np.sum(np.isfinite(stack[:,:,:,0]),axis=0)
         recovered=(local_mask>0)&(support>=1)&np.all(np.isfinite(median),axis=2)&(np.nan_to_num(deviation,nan=255).mean(axis=2)<26)
-        # Select one observed RGB pixel closest to the consensus, rather than
-        # averaging mismatched textures into a blurred or ghosted replacement.
-        cost=np.nan_to_num(np.abs(stack-median).mean(axis=3),nan=np.inf)
-        cost+=np.asarray(scores,np.float32)[:,None,None]*.15
-        winner=np.argmin(cost,axis=0)
-        yy,xx=np.indices((ch,cw));chosen=stack[winner,yy,xx]
-        patch[recovered]=np.nan_to_num(chosen[recovered]).astype(np.uint8)
+        # Prefer a coherent donor over pixel-by-pixel reference switching,
+        # which can turn an otherwise accurate repair into a visible mosaic.
+        hole=local_mask>0
+        usable=np.isfinite(stack[:,:,:,0])
+        coverage=np.mean(usable[:,hole],axis=1)
+        ranking=np.asarray(scores)+12*(1-coverage)
+        order=np.argsort(ranking)
+        filled=np.zeros((ch,cw),bool)
+        for index in order:
+            take=recovered&usable[index]&~filled
+            patch[take]=stack[index][take].astype(np.uint8)
+            filled|=take
     unknown=((local_mask>0)&~recovered).astype(np.uint8)*255
     stable_pixels=0
     if np.any(unknown):
@@ -186,6 +195,7 @@ def repair(target, references, mask, detail=True, previous=None, diagnostics=Non
                     steady=(unknown>0)&valid
                     patch[steady]=np.clip(.7*judged[0][steady]+.3*patch[steady],0,255).astype(np.uint8)
                     stable_pixels=int(steady.sum());break
+    patch=finish_boundary(roi,patch,local_mask,feather)
     output=target.pixels.copy();selected=local_mask>0
     output[y0:y1,x0:x1][selected]=patch[selected]
     if diagnostics is not None:diagnostics.update(denseReferences=dense_count,stabilizedFallbackPixels=stable_pixels)
@@ -257,7 +267,7 @@ def run(input_path, output_path, box, quality='high', radius=12, margin=3, keyfr
             neighbors=list(past)+list(future)
             neighbors=select_references(neighbors,target,12 if mode=='detail' else 6)
             diagnostic={}
-            repaired,recovered,selected,accepted=repair(target,neighbors,target.mask,mode=='detail',previous_repair,diagnostic)
+            repaired,recovered,selected,accepted=repair(target,neighbors,target.mask,mode=='detail',previous_repair,diagnostic,feather=min(margin,3))
             dense_total+=diagnostic.get('denseReferences',0);stable_total+=diagnostic.get('stabilizedFallbackPixels',0)
             previous_repair=Frame(repaired,target.gray,target.hist,target.pts,target.scene,target.mask)
             vf=av.VideoFrame.from_ndarray(repaired,format='bgr24')

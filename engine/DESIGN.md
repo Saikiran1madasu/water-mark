@@ -34,3 +34,7 @@ The residual-flow branch runs when affine alignment has measurable error and is 
 The 3-second preview route trims and normalizes a temporary copy, translates mask keyframes into the preview time range, then runs the same engine. Full exports use the original input and timestamp path. Preview source preparation introduces an additional encode, so preview pixels are not bit-identical to a full export.
 
 The hosted dashboard can contact the loopback engine directly through an exact-origin CORS bridge. Only the private dashboard origin and local studio origins are allowed; the server continues to bind to 127.0.0.1. A browser may require local-network permission or block loopback access; the full local studio remains available as a fallback. No cloud Python or GPU service is deployed.
+
+## Visible-patch correction, revision 2.1
+
+The concrete example failure was a source-selection problem: a model could score well on the visible boundary while revealing no clean pixels, residual flow could overfit codec noise, and independently chosen donor pixels could form an inconsistent interior. A local masked-correlation translation proposal now excludes both source and target watermark pixels. Model ranking includes observed-area coverage, residual flow is reserved for larger measured mismatch, and a coherent donor supplies each repair wherever possible. Only the expanded margin is feathered; the watermark core is fully replaced. No clean-reference asset is used by the repair pipeline.

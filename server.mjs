@@ -54,7 +54,7 @@ const server=http.createServer(async(req,res)=>{
  }
  if(req.method==='OPTIONS'){res.writeHead(204,{'Access-Control-Allow-Methods':'GET, POST, OPTIONS','Access-Control-Allow-Headers':'Content-Type, Range','Access-Control-Max-Age':'600'});return res.end();}
 
- if(req.method==='GET'&&url.pathname==='/api/health')return json(res,200,{available,engine:'MSK Temporal Repair v2',version:2});
+ if(req.method==='GET'&&url.pathname==='/api/health')return json(res,200,{available,engine:'MSK Temporal Repair v2',version:2,revision:'2.1',pid:process.pid});
  if(req.method==='POST'&&url.pathname==='/api/jobs'){
  if(!available)return json(res,503,{error:'Local engine dependencies are missing. Install requirements.txt in .venv and ensure FFmpeg is available.'});
  if([...jobs.values()].some(j=>['uploading','inspecting','processing'].includes(j.status)))return json(res,409,{error:'Another video is processing. Please wait.'});

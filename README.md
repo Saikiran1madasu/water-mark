@@ -49,3 +49,9 @@ POST `/api/jobs?box={x,y,w,h}&quality=high&radius=12&margin=3&keyframes=[]` acce
 - The private hosted dashboard can use the running local engine through an exact-origin browser bridge. Some browsers need local-network permission; use the full local studio if loopback access is blocked.
 
 API additions: `mode=detail`, `preview=1`, `previewStart=<seconds>`. Full exports leave preview unset. There is no trained generative model or automatic object tracking. Existing geometry, HDR, context, and mask limitations still apply. A real failing clip is necessary to diagnose real-world quality reliably.
+
+## Keep the local studio running
+
+`npm run start:background` starts the engine independently of a temporary terminal session. It writes only checkout-local PID/log files under `.runtime/`; it does not install a login service. `npm run stop:background` stops the background instance owned by this launcher. The regular `npm start` command still runs in the foreground.
+
+Revision 2.1 adds a regression for every frame of the built-in clip, including the colored shapes and final frames that previously exposed a visible patch. See BENCHMARKS.md for measured before/after errors and limits.

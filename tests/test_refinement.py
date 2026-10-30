@@ -6,7 +6,7 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'engine'))
 import cv2
 import numpy as np
 from temporal import prepare,make_mask,repair
-from refinement import dense_refine,exemplar_fill,select_references
+from refinement import dense_refine,exemplar_fill,select_references,finish_boundary,masked_translation
 from test_engine import texture
 
 class RefinementBehavior(unittest.TestCase):
@@ -63,6 +63,23 @@ class RefinementBehavior(unittest.TestCase):
         self.assertGreater(diagnostic['stabilizedFallbackPixels'],0)
         self.assertEqual(rec,0)
         self.assertLess(difference,baseline)
+
+    def test_feather_does_not_reintroduce_watermark_into_core(self):
+        original=np.full((30,30,3),120,np.uint8)
+        mask=np.zeros((30,30),np.uint8);mask[5:25,5:25]=255
+        original[8:22,8:22]=255
+        patch=np.full_like(original,80)
+        result=finish_boundary(original,patch,mask,3)
+        np.testing.assert_array_equal(result[8:22,8:22],80)
+        np.testing.assert_array_equal(result[mask==0],original[mask==0])
+        self.assertGreater(int(result[5,10,0]),80)
+        self.assertLess(int(result[5,10,0]),120)
+
+    def test_local_match_rejects_featureless_areas(self):
+        image=np.full((80,120,3),90,np.uint8)
+        mask=make_mask(image.shape,{'x':.4,'y':.4,'w':.1,'h':.1},0)
+        frame=prepare(image,0,0,mask)
+        self.assertIsNone(masked_translation(frame,frame,mask))
 
     def test_reference_selection_keeps_near_and_far_views(self):
         image=np.zeros((40,60,3),np.uint8)

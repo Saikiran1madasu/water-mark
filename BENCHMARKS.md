@@ -29,3 +29,18 @@ Controlled tests added for weaknesses that the original translation example did 
 | Original encoded panning export | v2 MAE 7.98, old delogo MAE 19.95; v2 reference recovery 94.9% |
 
 These are synthetic fixtures with known ground truth. They do not establish quality on the user's failing clip, which was not attached when these measurements were made. Dense-flow alignment is measured on visible pixels, not proof that hidden motion is correct. Exemplar reconstruction is synthesized texture; it is never reported as reference recovery. The full test suite also covers fallback stability, preview trim/keyframe translation, audio and frame timing, and exact-origin browser access.
+
+## Exact visible-patch regression (revision 2.1)
+
+The loaded `MSK-local-motion-example.mp4` preview showed an incorrect green shape at frame 36 and an incorrect yellow shape at the end, despite high reference coverage. This was reproduced against its clean reference, not inferred from a coverage percentage.
+
+For the same encoded preview preparation and expanded repair region across all 72 frames:
+
+| Measurement, channel MAE on 0–255 scale | Previous preview | Corrected preview |
+|---|---:|---:|
+| Mean across frames | 5.32 | 3.08 |
+| Worst frame | 14.93 | 3.61 |
+| Moving green shape, frame 36 | 14.46 | 2.19 |
+| Last frame | 14.93 | 3.35 |
+
+`tests/test_example_regression.py` now checks every frame, with explicit limits on the moving shape and clip ending. A good average is insufficient for this regression. The clean reference is evaluation-only; it is never passed into the engine. Remaining error includes alignment and video encoding differences. This validates the included example, not all possible footage.
