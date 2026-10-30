@@ -16,6 +16,8 @@ from pathlib import Path
 import av
 import cv2
 import numpy as np
+from structure import periodic_fill, smooth_fill
+from footprint import refine_footprint, composite_footprint
 from refinement import motion_models, sample, boundary_score, dense_refine, exemplar_fill, select_references, masked_translation, finish_boundary
 
 cv2.setNumThreads(2)
@@ -116,8 +118,24 @@ def align(target, source, mask, features=None):
     return matrix
 
 
-def repair(target, references, mask, detail=True, previous=None, diagnostics=None, feather=0):
+def repair(target, references, mask, detail=True, previous=None, diagnostics=None, feather=0, structure_hint=None):
     """Locally align clean observations, reject occlusions, synthesize only gaps."""
+    if detail:
+        structured=periodic_fill(target.pixels,mask,structure_hint)
+        if structured is None:structured=smooth_fill(target.pixels,mask)
+        if structured is not None:
+            rebuilt,info=structured
+            footprint=refine_footprint(target.pixels,rebuilt,mask,info.get('boundaryRMSE',1.5))
+            preserved=0;changed=int(np.count_nonzero(mask));precision=False
+            if footprint is not None:
+                alpha,footprint_info=footprint
+                rebuilt=composite_footprint(target.pixels,rebuilt,alpha)
+                preserved=footprint_info['preservedPixels'];changed=footprint_info['modifiedPixels'];precision=True
+            else:
+                rebuilt=finish_boundary(target.pixels,rebuilt,mask,feather)
+            if diagnostics is not None:
+                diagnostics.update(denseReferences=0,stabilizedFallbackPixels=0,structureMethod=info['method'],structurePixels=changed,structureShift=info.get('shift'),subpixelPattern=bool(info.get('subpixel',False)),precisionMask=precision,preservedSelectionPixels=preserved,agreementDonors=info.get('agreementDonors',0))
+            return rebuilt,0,int(np.count_nonzero(mask)),0
     ys,xs = np.where(mask>0)
     x0,x1,y0,y1 = int(xs.min()),int(xs.max()+1),int(ys.min()),int(ys.max()+1)
     pad=max(48,min(128,max(x1-x0,y1-y0)))
@@ -188,10 +206,12 @@ def repair(target, references, mask, detail=True, previous=None, diagnostics=Non
         # Previous synthesized pixels remain fallback; never count them as real
         # background recovery. Use them only when current boundary motion agrees.
         if previous is not None and previous.scene==target.scene:
-            for matrix in motion_models(target,previous,mask):
+            history_matrix=masked_translation(target,previous,mask)
+            history_models=[history_matrix] if history_matrix is not None and np.linalg.norm(history_matrix[:,2])<max(6,min(cw,ch)*.2) else []
+            for matrix in history_models:
                 warped,valid=sample(previous,matrix,rect,np.zeros_like(mask))
                 judged=boundary_score(roi,warped,valid,ring)
-                if judged is not None and judged[2]<6:
+                if judged is not None and judged[2]<2.5:
                     steady=(unknown>0)&valid
                     patch[steady]=np.clip(.7*judged[0][steady]+.3*patch[steady],0,255).astype(np.uint8)
                     stable_pixels=int(steady.sum());break
@@ -232,7 +252,7 @@ def run(input_path, output_path, box, quality='high', radius=12, margin=3, keyfr
     for name in ('color_range','colorspace','color_primaries','color_trc'):
         try:setattr(encoded.codec_context,name,getattr(stream.codec_context,name))
         except (AttributeError,ValueError,TypeError):pass
-    encoded.options={'crf':'17' if quality=='high' else '20','preset':'medium'}
+    encoded.options={'crf':'14' if quality=='high' else '20','preset':'medium'}
     past=deque(maxlen=radius)
     future=deque()
     previous=None
@@ -253,7 +273,7 @@ def run(input_path, output_path, box, quality='high', radius=12, margin=3, keyfr
         return item
     future.append(convert(first))
     exhausted=False
-    processed=0;recovered_sum=0;selected_sum=0;fallback_frames=0;previous_repair=None;dense_total=0;stable_total=0
+    processed=0;recovered_sum=0;selected_sum=0;fallback_frames=0;previous_repair=None;dense_total=0;stable_total=0;structure_total=0;pattern_frames=0;smooth_frames=0;structure_hint=None;subpixel_frames=0;preserved_total=0;precision_frames=0;consensus_frames=0
     emit(stage='repairing',progress=0,frames=0,temporalCoverage=0)
     try:
         while future:
@@ -267,8 +287,14 @@ def run(input_path, output_path, box, quality='high', radius=12, margin=3, keyfr
             neighbors=list(past)+list(future)
             neighbors=select_references(neighbors,target,12 if mode=='detail' else 6)
             diagnostic={}
-            repaired,recovered,selected,accepted=repair(target,neighbors,target.mask,mode=='detail',previous_repair,diagnostic,feather=min(margin,3))
+            if previous_repair is not None and previous_repair.scene!=target.scene:structure_hint=None
+            repaired,recovered,selected,accepted=repair(target,neighbors,target.mask,mode=='detail',previous_repair,diagnostic,feather=min(margin,3),structure_hint=structure_hint)
             dense_total+=diagnostic.get('denseReferences',0);stable_total+=diagnostic.get('stabilizedFallbackPixels',0)
+            structure_hint=diagnostic.get('structureShift')
+            subpixel_frames+=diagnostic.get('subpixelPattern',False)
+            consensus_frames+=diagnostic.get('agreementDonors',0)>=3
+            preserved_total+=diagnostic.get('preservedSelectionPixels',0);precision_frames+=diagnostic.get('precisionMask',False)
+            structure_total+=diagnostic.get('structurePixels',0);pattern_frames+=diagnostic.get('structureMethod')=='pattern';smooth_frames+=diagnostic.get('structureMethod')=='smooth'
             previous_repair=Frame(repaired,target.gray,target.hist,target.pts,target.scene,target.mask)
             vf=av.VideoFrame.from_ndarray(repaired,format='bgr24')
             vf.pts=target.pts;vf.time_base=clock
@@ -284,7 +310,7 @@ def run(input_path, output_path, box, quality='high', radius=12, margin=3, keyfr
             destination.mux(packet)
     finally:
         destination.close();source.close()
-    stats={'engine':'MSK Temporal Repair v2','frames':processed,'temporalCoverage':round(recovered_sum/max(1,selected_sum)*100,1),'fallbackFrames':fallback_frames,'windowRadius':radius,'margin':margin,'maskMode':'keyframed' if keyframes else 'fixed','keyframes':len(keyframes),'repairMode':mode,'denseReferences':dense_total,'stabilizedFallbackCoverage':round(stable_total/max(1,selected_sum)*100,1),'synthesizedCoverage':round(100-recovered_sum/max(1,selected_sum)*100,1),'processingSeconds':round(time.perf_counter()-started,2)}
+    stats={'engine':'MSK Temporal Repair v2','frames':processed,'temporalCoverage':round(recovered_sum/max(1,selected_sum)*100,1),'fallbackFrames':fallback_frames,'windowRadius':radius,'margin':margin,'maskMode':'keyframed' if keyframes else 'fixed','keyframes':len(keyframes),'repairMode':mode,'denseReferences':dense_total,'stabilizedFallbackCoverage':round(stable_total/max(1,selected_sum)*100,1),'synthesizedCoverage':round(100-(recovered_sum+preserved_total)/max(1,selected_sum)*100,1),'processingSeconds':round(time.perf_counter()-started,2),'structureCoverage':round(structure_total/max(1,selected_sum)*100,1),'patternFrames':pattern_frames,'smoothFrames':smooth_frames,'subpixelPatternFrames':subpixel_frames,'precisionMaskFrames':precision_frames,'patternConsensusFrames':consensus_frames,'preservedSelectionCoverage':round(preserved_total/max(1,selected_sum)*100,1)}
     emit(stage='repaired',progress=90,stats=stats)
     return stats
 

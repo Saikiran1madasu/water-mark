@@ -44,3 +44,27 @@ For the same encoded preview preparation and expanded repair region across all 7
 | Last frame | 14.93 | 3.35 |
 
 `tests/test_example_regression.py` now checks every frame, with explicit limits on the moving shape and clip ending. A good average is insufficient for this regression. The clean reference is evaluation-only; it is never passed into the engine. Remaining error includes alignment and video encoding differences. This validates the included example, not all possible footage.
+
+## Real patterned-background clip
+
+A user-provided 6.016-second, 1280×720 clip was processed locally after reproducing smeared grid crosses and ghosting in the previous output. The new run used a tight mask around the fixed mark plus a three-pixel safety margin. Review included a crop of every one of its 144 frames and enlarged comparisons through the closing light transition. Pattern reconstruction was used on 128 frames and lighting reconstruction on 12; the remaining frames used the general repair path. Estimated same-frame reconstruction is not counted as temporal recovery.
+
+Integrity validation confirmed 144 frames, unchanged 1280×720 dimensions, one audio stream, matching 6.016-second duration, strictly increasing frame times, and zero normalized timestamp difference from the source. No clean version of the hidden area exists for this clip; no exact-recovery quality score is claimed. User footage and diagnostics remain outside published source/assets. Generated tests cover intact repeating crosses, smooth illumination, source-hole exclusion and truthful recovery statistics.
+
+## Further pattern polish
+
+A small local holdout comparison masked clean regions of the same real clip and evaluated both pattern implementations against the available original pixels there. On the four sampled frames where both returned a pattern match, mean channel MAE changed from 1.263 to 1.206 (0–255 scale). One sampled frame increased slightly; this is limited evidence for average alignment improvement, not a universal quality gain or a score for the genuinely hidden region. New generated tests cover fractional pattern periods and rejection of a bad prior donor. Real-video exports retain their integrity checks and visual review.
+
+
+## Footprint preservation on the supplied diagnostic clip
+
+A local 144-frame render of the user's 1280×720 diagnostic clip used the conservative footprint on 115 frames. Across all frames, 48.9% of selected pixels were preserved from the input before export encoding, 2.7% came from observed temporal references, and 48.4% were estimated content. Pattern/lighting reconstruction accounted for 48.3 percentage points of that estimated content. All 144 repaired-area crops were visually inspected. This is processing-source evidence; there is no clean original behind the actual mark.
+
+The output passed resolution, frame-count, audio-stream-count, duration and frame-timestamp checks: 1280×720, 144 frames, one audio stream, 6.016 seconds and zero measured normalized timestamp error. The footage and review images remain local. Generated tests cover soft light and dark shapes, preservation outside the footprint, full-selection fallback, weak evidence rejection, bad-plate rejection and repair-stat accounting.
+
+
+## Independent donor agreement
+
+The supplied diagnostic clip was rendered again with donor agreement enabled: 115 of 144 frames had at least three compatible, sufficiently separate donor areas. Integrity checks passed with the same dimensions, duration, frame count, audio-stream count and exact normalized frame timestamps. Every repaired-area crop was reviewed.
+
+Four known-clean holdouts from the real footage returned valid pattern repairs in both configurations. Their selected-region MAE was unchanged (1.3521, 0.9719, 0.9866 and 1.5125). These samples show no measured gain or regression; they do not establish hidden-watermark accuracy. A generated adversarial test verifies that three agreeing clean tiles reject a better-border-scoring tile with unrelated interior content. Separate tests reject duplicate votes, split majorities and poorly matched boundaries. The full suite passes 33 tests.

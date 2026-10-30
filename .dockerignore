@@ -1,0 +1,12 @@
+*
+!Dockerfile
+!requirements.txt
+!server.mjs
+!deployment.mjs
+!package.json
+!engine/
+!engine/*.py
+!dist/
+!dist/**
+!scripts/
+!scripts/container-entrypoint.sh

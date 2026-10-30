@@ -46,7 +46,7 @@ POST `/api/jobs?box={x,y,w,h}&quality=high&radius=12&margin=3&keyframes=[]` acce
 - Independent repair mode (`detail` or `balanced`) and export quality controls.
 - Three-second preview at the playhead, with keyframe times translated to the selected range.
 - A generated local-motion test clip and a clean reference in `dist/examples/`; this is a controlled example, not real-world validation. Regenerate with `.venv/bin/python tests/generate_example.py`.
-- The private hosted dashboard can use the running local engine through an exact-origin browser bridge. Some browsers need local-network permission; use the full local studio if loopback access is blocked.
+- Hosted deployments use a configured HTTPS processing endpoint. The local studio uses its own same-origin engine. See HOSTING.md for the GitHub deployment setup.
 
 API additions: `mode=detail`, `preview=1`, `previewStart=<seconds>`. Full exports leave preview unset. There is no trained generative model or automatic object tracking. Existing geometry, HDR, context, and mask limitations still apply. A real failing clip is necessary to diagnose real-world quality reliably.
 
@@ -55,3 +55,21 @@ API additions: `mode=detail`, `preview=1`, `previewStart=<seconds>`. Full export
 `npm run start:background` starts the engine independently of a temporary terminal session. It writes only checkout-local PID/log files under `.runtime/`; it does not install a login service. `npm run stop:background` stops the background instance owned by this launcher. The regular `npm start` command still runs in the foreground.
 
 Revision 2.1 adds a regression for every frame of the built-in clip, including the colored shapes and final frames that previously exposed a visible patch. See BENCHMARKS.md for measured before/after errors and limits.
+
+## Pattern and illumination repair
+
+Detail mode now detects confident repeating backgrounds and repairs them using a whole clean tile with local shading correction. Smooth lighting can be reconstructed through a validated surface fit. The algorithm rejects unsuitable matches and falls back to the existing motion/exemplar pipeline. Pattern/lighting reconstruction is explicitly estimated content, not temporal recovery of the original pixels.
+
+Preview playback controls sit below the video rather than over it, removing the native control gradient from the area being reviewed. This change is syntax/structure-checked; browser interaction was unavailable during this update.
+
+Use `.venv/bin/python scripts/validate_video.py INPUT OUTPUT --report REPORT.json` to check dimensions, frame count, frame presentation times, audio stream count and duration. It checks file integrity, not hidden-region visual accuracy.
+
+
+Detail mode also estimates a conservative light/dark watermark footprint when the pattern or lighting plate is sufficiently reliable. This can keep real background pixels inside the selection rather than repainting the whole rectangle. Uncertain shapes retain the existing repair path. The repair report now shows preserved selection coverage separately from recovered and estimated content.
+
+
+Pattern repairs also compare independent clean donor areas. A strong majority can reject a replacement whose border fits but whose interior contains inconsistent detail. The engine still copies one coherent tile rather than averaging patterns together. Ambiguous matches retain the existing boundary-based selection.
+
+## GitHub and online hosting
+
+The dashboard now supports a configured HTTPS engine and repository-relative GitHub Pages assets. The server can listen on a public container port, accept configured dashboard origins, retain job status on a persistent disk, and expire old exports. See [HOSTING.md](HOSTING.md) for the GitHub Pages workflow and Docker/Render setup. These files prepare deployment; they do not create a GitHub repository or a running cloud service.
