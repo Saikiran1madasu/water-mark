@@ -1,1 +1,13 @@
-{"name":"clearframe","version":"1.0.0","private":true,"scripts":{"start":"node server.mjs","check":"node --check server.mjs && node --check dist/app.js"},"engines":{"node":">=20"}}
+{
+  "name": "clearframe",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "node server.mjs",
+    "check": "node --check server.mjs && node --check dist/app.js",
+    "test": ".venv/bin/python -m unittest discover -s tests -v"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
