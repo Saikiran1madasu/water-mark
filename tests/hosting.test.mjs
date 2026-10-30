@@ -38,8 +38,10 @@ test('completed exports survive restart, interrupted work fails honestly, expire
 });
 
 test('Pages build requires a public HTTPS engine and works below a repository path',()=>{
-  const build=api=>spawnSync(process.execPath,['scripts/build-pages.mjs'],{cwd:root,env:{...process.env,MSK_API_URL:api},encoding:'utf8'});
+  const build=(api,editorOnly='0')=>spawnSync(process.execPath,['scripts/build-pages.mjs'],{cwd:root,env:{...process.env,MSK_API_URL:api,MSK_EDITOR_ONLY:editorOnly},encoding:'utf8'});
   for(const invalid of ['','http://localhost:4173','https://user:secret@api.example','https://api.example/path'])assert.notEqual(build(invalid).status,0);
+  assert.equal(build('','1').status,0);
+  assert.match(fs.readFileSync(path.join(root,'.pages/config.js'),'utf8'),/"editorOnly":true/);
   assert.equal(build('https://api.example/').status,0);
   const config=fs.readFileSync(path.join(root,'.pages/config.js'),'utf8');assert.match(config,/https:\/\/api.example/);assert(!config.includes('localhost'));
   const html=fs.readFileSync(path.join(root,'.pages/index.html'),'utf8');

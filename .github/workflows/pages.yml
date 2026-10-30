@@ -21,6 +21,7 @@ jobs:
       - run: npm run build:pages
         env:
           MSK_API_URL: ${{ vars.MSK_API_URL }}
+          MSK_EDITOR_ONLY: "1"
       - uses: actions/upload-pages-artifact@v4
         with:
           path: .pages

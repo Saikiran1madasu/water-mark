@@ -8,7 +8,7 @@ GitHub Pages cannot run this Python engine. GitHub Actions builds and publishes 
 
 - `.github/workflows/container.yml`: builds the Docker image on GitHub and smoke-tests engine readiness and the dashboard with a mounted volume.
 - `.github/workflows/pages.yml`: builds and deploys `dist` to GitHub Pages on pushes to `main`.
-- `scripts/build-pages.mjs`: writes the public API URL into the published `config.js`. It requires a public HTTPS origin and rejects credentials or a URL path. No API secrets belong in this public configuration.
+- `scripts/build-pages.mjs`: writes the public API URL into the published `config.js`. For video processing it requires a public HTTPS origin and rejects credentials or a URL path. The Pages workflow explicitly permits editor-only publication when that URL is missing; the UI clearly disables processing in that state. No API secrets belong in this public configuration.
 - `Dockerfile`: packages Node, FFmpeg, Python and the current custom engine.
 - `render.yaml`: example single-instance Render service with a persistent disk, readiness checks, processing limits and export expiry.
 - `deployment.mjs`: configured origins and storage, job metadata recovery, interrupted-job reporting and expired-file cleanup.
@@ -24,7 +24,7 @@ GitHub Pages cannot run this Python engine. GitHub Actions builds and publishes 
 ## Deploy the GitHub Pages dashboard
 
 1. In the GitHub repository, open **Settings → Pages → Build and deployment → Source → GitHub Actions**.
-2. Open **Settings → Secrets and variables → Actions → Variables**. Add the repository variable `MSK_API_URL` with `https://YOUR-ENGINE.onrender.com` (no path). This is a public endpoint, not a secret.
+2. Without a processing URL, the workflow publishes an editor-only dashboard with processing disabled. To enable removal, open **Settings → Secrets and variables → Actions → Variables**. Add the repository variable `MSK_API_URL` with `https://YOUR-ENGINE.onrender.com` (no path). This is a public endpoint, not a secret.
 3. Push to `main` or run **Deploy dashboard to GitHub Pages** manually under Actions.
 4. Open `https://YOUR-USERNAME.github.io/YOUR-REPOSITORY/`. Assets use relative paths so project Pages work below the repository path.
 5. Upload a short test video, draw the watermark selection, run a preview, then a full export. Confirm playback and download from the separate engine. The hosted dashboard does not contact localhost.
@@ -64,6 +64,6 @@ docker build -t msk-video .
 docker run --rm -p 10000:10000 -v msk-video-data:/app/storage msk-video
 ```
 
-No cloud resources or GitHub repository have been created by these source changes. The container build and a live cross-domain browser upload must be verified on the deployment platform; local routing tests do not replace those checks.
+The processing server must still be provisioned separately. The first engine-container build and mounted-volume readiness checks passed on GitHub Actions. A live cross-domain browser upload must still be verified after connecting the processing server; container and routing checks do not replace that check.
 
 References: [GitHub Pages](https://docs.github.com/en/pages/getting-started-with-github-pages/what-is-github-pages), [Pages workflows](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages), [Render Docker services](https://render.com/docs/docker), [persistent disks](https://render.com/docs/disks).
