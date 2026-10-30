@@ -17,7 +17,7 @@ GitHub Pages cannot run this Python engine. GitHub Actions builds and publishes 
 
 1. Push this `clearframe` directory as the GitHub repository root. The workflow paths assume that layout. Do not push the enclosing Downloads, `.runtime`, `.venv`, private videos or diagnostic images.
 2. In Render, create a Blueprint from the repository using `render.yaml`. The template selects a **paid** service and disk; review the provider's current price before creating resources. CPU video processing needs more memory and time than static website hosting.
-3. For `ALLOWED_ORIGINS`, enter your exact Pages origin, such as `https://YOUR-USERNAME.github.io`. Do not include the repository path. Add any custom dashboard origin separated by commas. The server also accepts its own Render origin through `RENDER_EXTERNAL_URL` automatically.
+3. `ALLOWED_ORIGINS` is already set to `https://saikiran1madasu.github.io` for this repository. If you fork the project, change it to your own exact Pages origin. Do not include the repository path. Add any custom dashboard origin separated by commas. The server also accepts its own Render origin through `RENDER_EXTERNAL_URL` automatically.
 4. Deploy. Open `https://YOUR-ENGINE.onrender.com/api/ready`; it must return HTTP 200 and `{"available":true}`. An unavailable dependency returns 503 so the deployment does not look ready prematurely.
 5. You can already use the dashboard at the engine's root URL. This same-origin option needs no GitHub Pages configuration.
 

@@ -16,7 +16,7 @@ services:
       - key: MSK_DATA_DIR
         value: /app/storage
       - key: ALLOWED_ORIGINS
-        sync: false
+        value: https://saikiran1madasu.github.io
       - key: MAX_UPLOAD_MB
         value: "500"
       - key: MAX_DURATION_SECONDS
