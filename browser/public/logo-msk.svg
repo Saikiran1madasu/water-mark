@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">MSK image converter logo</title>
+  <desc id="desc">A spacious black MSK monogram framed by two restrained image corners.</desc>
+  <defs>
+    <linearGradient id="lime" x1="18" y1="18" x2="112" y2="112" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#e5ff8c"/><stop offset=".52" stop-color="#c9f56f"/><stop offset="1" stop-color="#a9e747"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="24" fill="#030705"/>
+  <rect x="3" y="3" width="122" height="122" rx="21" fill="none" stroke="#17231d" stroke-width="2"/>
+  <g fill="none" stroke="url(#lime)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M17 48V27a10 10 0 0 1 10-10h29"/>
+    <path d="M72 111h29a10 10 0 0 0 10-10V80"/>
+  </g>
+  <rect x="9" y="43" width="110" height="44" rx="13" fill="#010302"/>
+  <g fill="url(#lime)">
+    <path transform="translate(-14 0) scale(.92 1)" d="M31 51v27h8V63l10 12 10-12v15h8V51H57l-8 10-8-10Z"/>
+    <path transform="scale(.92 1)" d="M72 51h19l-4 7H78v3h7c6 0 9 3 9 8s-4 9-10 9H68l4-7h13v-3h-7c-6 0-10-3-10-8s4-9 10-9Z"/>
+    <path transform="translate(8 0) scale(.92 1)" d="M95 51h8v10l9-10h10l-13 13 14 14h-11l-9-10v10h-8Z"/>
+  </g>
+</svg>

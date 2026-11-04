@@ -1,0 +1,76 @@
+{
+  "kind": "generated regression example",
+  "frames": 96,
+  "fps": 24,
+  "width": 640,
+  "height": 360,
+  "selection": {
+    "x": 0.840625,
+    "y": 0.7361111111111112,
+    "w": 0.06875,
+    "h": 0.1388888888888889
+  },
+  "repairRuntime": "browser WebCodecs worker",
+  "referencePassedToEngine": false,
+  "engineSha256": "f4a4bbff972df67d26b4d8c093100495aa1c8d99983ee475d629e949dac72c32",
+  "selectedAreaErrorAgainstKnownCleanReference": {
+    "previous": {
+      "frames": 96,
+      "selectedRegionMAE": 0.7902509570121765,
+      "temporalResidualMAE": 0.22699680924415588,
+      "transitionTemporalResidualMAE": 0.5858225226402283
+    },
+    "updated": {
+      "frames": 96,
+      "selectedRegionMAE": 0.791313111782074,
+      "temporalResidualMAE": 0.22354546189308167,
+      "transitionTemporalResidualMAE": 0.5764545202255249
+    }
+  },
+  "stabilityComparison": {
+    "before": {
+      "frames": 96,
+      "selectedRegionMAE": 0.7902509570121765,
+      "temporalResidualMAE": 0.22699680924415588,
+      "transitionTemporalResidualMAE": 0.5858225226402283
+    },
+    "after": {
+      "frames": 96,
+      "selectedRegionMAE": 0.791313111782074,
+      "temporalResidualMAE": 0.22354546189308167,
+      "transitionTemporalResidualMAE": 0.5764545202255249
+    }
+  },
+  "previousVersion": "Immediately preceding browser engine, before playback stability changes",
+  "transparencyRegression": {
+    "before": {
+      "selectedRegionMAE": 0.7913131313131313,
+      "temporalResidualMAE": 0.22354545454545455
+    },
+    "after": {
+      "selectedRegionMAE": 0.7913131313131313,
+      "temporalResidualMAE": 0.22354545454545455
+    }
+  },
+  "preparationRegression": {
+    "before": {
+      "regionMAE": 0.7913131313131313,
+      "temporalResidualMAE": 0.22354545454545455
+    },
+    "after": {
+      "regionMAE": 0.7913131313131313,
+      "temporalResidualMAE": 0.22354545454545455
+    }
+  },
+  "playerSha256": "678b060dd92e158aa480ae364f550e572b4060f2b8977c3524442118484af4fc",
+  "glitchRegression": {
+    "before": {
+      "regionMAE": 0.7913131313131313,
+      "temporalResidualMAE": 0.22354545454545455
+    },
+    "after": {
+      "regionMAE": 0.7913131313131313,
+      "temporalResidualMAE": 0.22354545454545455
+    }
+  }
+}

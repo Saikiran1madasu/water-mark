@@ -2,6 +2,20 @@
 
 Copyright (c) 2026 Saikiran1madasu. All rights reserved. Original project materials are proprietary; see [LICENSE](LICENSE) and [third-party notices](THIRD_PARTY_NOTICES.md).
 
+The default [GitHub Pages studio](https://saikiran1madasu.github.io/water-mark/) is now the **browser edition** in [`browser/`](browser/README.md). It processes video on your device without a Python server or engine URL. The Pages workflow installs, tests and builds this edition, then publishes `browser/dist`. The original server edition is preserved below and remains available independently.
+
+To run the browser edition locally:
+
+```sh
+cd browser
+npm ci
+npm start
+```
+
+Open http://localhost:4174. See [`browser/README.md`](browser/README.md) for browser support, limits and repair-quality details, and [`browser/VERIFICATION.md`](browser/VERIFICATION.md) for validation results.
+
+## Original server edition
+
 Custom temporal video repair engine with the MSK dashboard. No cloned removal repository, model weights, remote inference service or FFmpeg delogo in the application pipeline. Third-party numerical, computer vision and media libraries are still required; see engine/DESIGN.md.
 
 ## Setup and run

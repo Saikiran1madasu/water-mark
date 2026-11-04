@@ -1,0 +1,27 @@
+{
+  "name": "msk-browser-video-removal",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "start": "npm run build && node scripts/serve.mjs",
+    "serve": "node scripts/serve.mjs",
+    "check": "node --check src/app.js && node --check src/worker.js && node --check src/repair.js && node --check src/illumination.js && node --check src/stability.js && node --check src/example-player.js && node --check src/blend.js && node --check src/transparency.js && node --check src/prepare.js && node --check src/playback.js",
+    "test": "node --test tests/*.test.mjs",
+    "build:test": "node scripts/build-test.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "author": "Saikiran1madasu",
+  "license": "UNLICENSED",
+  "description": "Private, browser-only video watermark repair, built for static hosting.",
+  "keywords": [],
+  "type": "module",
+  "dependencies": {
+    "mediabunny": "1.65.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}

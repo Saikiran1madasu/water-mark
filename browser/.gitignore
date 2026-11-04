@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.runtime/
+.DS_Store
+.env
+.env.*
+*.log
+__pycache__/
+reference/server-engine/.runtime/
+reference/server-engine/.venv/
+tests/runner.js
+tests/worker-before.js
