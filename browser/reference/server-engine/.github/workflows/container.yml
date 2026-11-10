@@ -1,0 +1,33 @@
+name: Check hosted engine container
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  container:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build current engine
+        run: docker build -t msk-video .
+      - name: Start engine with a mounted data volume
+        run: docker run -d --name msk-smoke -p 127.0.0.1:10000:10000 -v msk-smoke-data:/app/storage msk-video
+      - name: Confirm engine dependencies and dashboard
+        run: |
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:10000/api/ready; then
+              curl --fail --silent http://127.0.0.1:10000/ > /dev/null
+              exit 0
+            fi
+            sleep 2
+          done
+          exit 1
+      - name: Show logs and stop test container
+        if: always()
+        run: |
+          docker logs msk-smoke || true
+          docker rm -f msk-smoke || true

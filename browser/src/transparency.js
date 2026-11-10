@@ -3,11 +3,11 @@
 // The inverse uses CURRENT source pixels, never a previous painted frame.
 export class TransparencyModel{
   constructor(){this.reset();}
-  reset(){this.rect=null;this.level=null;this.frames=0;this.weights=null;this.dots=null;this.squares=null;this.counts=null;this.shape=null;}
+  reset(){this.rect=null;this.level=null;this.frames=0;this.weights=null;this.dots=null;this.squares=null;this.counts=null;this.minimumWeights=null;this.shape=null;}
   compatible(r,shape){return this.rect&&shape&&this.level===shape.level&&['x','y','w','h'].every(k=>r[k]===this.rect[k]);}
   learn(data,w,r,plate,shape){
     if(!shape){return;}
-    if(!this.compatible(r,shape)){this.reset();this.rect={...r};this.level=shape.level;this.weights=new Float64Array(r.w*r.h);this.dots=new Float64Array(r.w*r.h);this.squares=new Float64Array(r.w*r.h);this.counts=new Uint8Array(r.w*r.h);}
+    if(!this.compatible(r,shape)){this.reset();this.rect={...r};this.level=shape.level;this.weights=new Float64Array(r.w*r.h);this.dots=new Float64Array(r.w*r.h);this.squares=new Float64Array(r.w*r.h);this.counts=new Uint8Array(r.w*r.h);this.minimumWeights=new Float64Array(r.w*r.h).fill(Infinity);}
     // Freeze the calibration rather than fitting every new scene to its own guess.
     if(this.frames>=12)return;
     this.shape=shape;
@@ -20,6 +20,7 @@ export class TransparencyModel{
       if(alpha<.025||alpha>.78||residual>18)continue;
       this.weights[i]+=weight;this.dots[i]+=dot;this.squares[i]+=square;
       this.counts[i]++;
+      this.minimumWeights[i]=Math.min(this.minimumWeights[i],weight);
     }
     this.frames++;
   }
@@ -73,14 +74,17 @@ export class TransparencyModel{
   recover(data,w,r,plate,shape){
     if(this.frames<12||!this.compatible(r,shape))return {plate,pixels:0};
     let core=0,calibrated=0;
-    for(let i=0;i<shape.alpha.length;i++)if(shape.alpha[i]>=.99){core++;const a=this.dots[i]/this.weights[i];if(this.counts[i]>=8&&this.weights[i]>=3600&&a>=.04&&a<=.7)calibrated++;}
+    for(let i=0;i<shape.alpha.length;i++)if(shape.alpha[i]>=.99){core++;const a=this.dots[i]/this.weights[i];if(this.counts[i]>=8&&this.weights[i]>=3600&&this.minimumWeights[i]>=3*32**2&&a>=.04&&a<=.7)calibrated++;}
     // Antialiasing around an opaque logo is not evidence that its interior is
     // transparent. Require substantial translucent support across the footprint.
     if(calibrated<Math.max(30,core*.35))return {plate,pixels:0};
     let result=null,pixels=0;
     for(let y=0;y<r.h;y++)for(let x=0;x<r.w;x++){
       const i=y*r.w+x,j=((r.y+y)*w+r.x+x)*4,weight=this.weights[i];
-      if(shape.alpha[i]<.99||this.counts[i]<8||weight<3600)continue;
+      // Weak observations can locate the outline but cannot safely invert it.
+      // Require 32 RGB levels RMS of separation in every fitted observation;
+      // otherwise tiny plate errors can become a fixed opacity-shaped patch.
+      if(shape.alpha[i]<.99||this.counts[i]<8||weight<3600||this.minimumWeights[i]<3*32**2)continue;
       const opacity=this.dots[i]/weight;
       if(opacity<.04||opacity>.7)continue;
       // Calibration variance and current RGB consistency must both agree.

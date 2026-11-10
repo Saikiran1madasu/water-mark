@@ -1,0 +1,17 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
+const root=path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+const raw=process.env.MSK_API_URL;
+const editorOnly=!raw&&process.env.MSK_EDITOR_ONLY==='1';
+if(!raw&&!editorOnly)throw Error('Set the GitHub repository variable MSK_API_URL to your HTTPS processing-server URL.');
+const url=raw?new URL(raw):null;
+if(url&&(url.protocol!=='https:'||url.username||url.password||url.search||url.hash||!['','/'].includes(url.pathname)||['localhost','127.0.0.1','[::1]'].includes(url.hostname)))throw Error('MSK_API_URL must be a public HTTPS origin, without a path or credentials.');
+const output=path.join(root,'.pages');
+fs.rmSync(output,{recursive:true,force:true});
+fs.cpSync(path.join(root,'dist'),output,{recursive:true});
+fs.writeFileSync(path.join(output,'config.js'),`window.MSK_CONFIG = ${JSON.stringify({apiBase:url?.origin||'',editorOnly})};\n`);
+fs.copyFileSync(path.join(root,'LICENSE'),path.join(output,'LICENSE'));
+fs.copyFileSync(path.join(root,'THIRD_PARTY_NOTICES.md'),path.join(output,'THIRD_PARTY_NOTICES.md'));
+fs.writeFileSync(path.join(output,'.nojekyll'),'');
+console.log('GitHub Pages dashboard prepared in .pages');

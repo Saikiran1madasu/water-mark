@@ -5,13 +5,15 @@ import {illuminationPlate,lightingBoundary} from './illumination.js';
 import {holdFootprint,contextChanged} from './stability.js';
 import {matchFootprintBoundary} from './blend.js';
 import {TransparencyModel} from './transparency.js';
+import {recoverOriginalMotion} from './motion-support.js';
+import {repairTangents} from './tangent-repair.js';
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const overlap=(a,b)=>a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
 const expanded=(r,n=2)=>({x:r.x-n,y:r.y-n,w:r.w+2*n,h:r.h+2*n});
 const inside=(x,y,r)=>x>=r.x&&x<r.x+r.w&&y>=r.y&&y<r.y+r.h;
 const at=(w,x,y)=>(y*w+x)*4;
 const lum=(a,i)=>(a[i]+2*a[i+1]+a[i+2])/4;
-const emptyStats=()=>({frames:0,selected:0,preserved:0,temporal:0,pattern:0,lighting:0,fallback:0,stableMaskFrames:0,subpixelFrames:0,sceneResets:0,boundaryMatchedFrames:0,inverseRecoveredPixels:0,preparedFrames:0,edgeValidatedMaskFrames:0,contourFillFrames:0});
+const emptyStats=()=>({frames:0,selected:0,preserved:0,temporal:0,pattern:0,lighting:0,fallback:0,decomposed:0,stableMaskFrames:0,subpixelFrames:0,sceneResets:0,boundaryMatchedFrames:0,inverseRecoveredPixels:0,preparedFrames:0,edgeValidatedMaskFrames:0,contourFillFrames:0,globalInverseFrames:0,globalRejectedFrames:0,globalModelSamples:0,globalModelAccepted:0,toneMatchedFrames:0,toneCorrectedPixels:0,structuralCleanupFrames:0,structuralEstimatedPixels:0});
 function linearPixel(data,w,x,y,c){
   const x0=Math.floor(x),y0=Math.floor(y),fx=x-x0,fy=y-y0,i=at(w,x0,y0);
   if(fx===0&&fy===0)return data[i+c];
@@ -216,11 +218,59 @@ export function footprint(data,w,r,plate,noise=1.5){
   return candidates[0];
 }
 export class BrowserRepair {
-  constructor(options={}){this.options=options;this.history=[];this.hint=null;this.maskState=null;this.transparency=new TransparencyModel();this.stats=emptyStats();}
-  beginOutput(preparedFrames=0){this.history=[];this.hint=null;this.maskState=null;this.stats={...emptyStats(),preparedFrames};}
+  constructor(options={}){this.options=options;this.history=[];this.hint=null;this.maskState=null;this.transparency=new TransparencyModel();this.globalOverlay=null;this.stats=emptyStats();}
+  beginOutput(preparedFrames=0){this.history=[];this.hint=null;this.maskState=null;this.globalOverlay?.resetFrameState();this.stats={...emptyStats(),preparedFrames};}
   process(data,w,h,box){
-    const r=selection(w,h,box,this.options.margin??3),samples=points(data,w,h,r,Math.min(36,Math.max(r.w,r.h)),Math.max(4,Math.floor(Math.sqrt(r.w*r.h)/10)));
-    if(contextChanged(data,this.history[0]?.data,w,h,r)){this.history=[];this.hint=null;this.maskState=null;this.stats.sceneResets++;}
+    let r=selection(w,h,box,this.options.margin??3);
+    const requested=this.globalOverlay?.requestedRect;
+    if(requested&&['x','y','w','h'].every(k=>requested[k]===r[k]))r=this.globalOverlay.r;
+    const samples=points(data,w,h,r,Math.min(36,Math.max(r.w,r.h)),Math.max(4,Math.floor(Math.sqrt(r.w*r.h)/10)));
+    if(contextChanged(data,this.history[0]?.data,w,h,r)){this.history=[];this.hint=null;this.maskState=null;this.globalOverlay?.resetFrameState();this.stats.sceneResets++;}
+    if(this.globalOverlay){
+      const original=data.slice(),motionMode=this.options.mode==='motion',global=this.globalOverlay.recover(data,w,h,r,{seamless:this.options.mode==='seamless'||motionMode,returnMask:motionMode});
+      if(global){
+        const area=r.w*r.h,preserved=area-global.core-global.band;
+        let support=null,recoveredDirect=0,recoveredEstimated=0,recoveredBand=0;
+        const temporal=motionMode?(()=>{
+          support=Uint8Array.from(this.globalOverlay.core,(v,i)=>v||this.globalOverlay.band[i]);
+          return recoverOriginalMotion({original,repaired:data,w,h,r,support,opacity:this.globalOverlay.alpha,history:this.history});
+        })():{pixels:0};
+        if(temporal.pixels){
+          for(let i=0;i<temporal.mask.length;i++)if(temporal.mask[i]){if(!this.globalOverlay.core[i])recoveredBand++;else if(global.estimatedMask[i])recoveredEstimated++;else recoveredDirect++;}
+          this.stats.motionSupportFrames=(this.stats.motionSupportFrames??0)+1;
+          this.stats.motionSupportPixels=(this.stats.motionSupportPixels??0)+temporal.pixels;
+          if(temporal.subpixelPixels){this.stats.motionSubpixelFrames=(this.stats.motionSubpixelFrames??0)+1;this.stats.motionSubpixelPixels=(this.stats.motionSubpixelPixels??0)+temporal.subpixelPixels;}
+        }
+        this.hint=null;this.maskState=null;
+        for(const source of this.history)source.age++;this.history.unshift({data:original,mask:r,overlaySupport:support,age:1});
+        const keep=Math.max(1,Math.min(this.options.radius??6,12,Math.floor(64*1024*1024/(w*h*4))));this.history.length=Math.min(this.history.length,keep);
+        this.stats.frames++;this.stats.selected+=area;this.stats.preserved+=preserved;this.stats.decomposed+=global.core-(global.estimatedCore??global.tone??0)-recoveredDirect;this.stats.lighting+=global.band+(global.estimatedCore??global.tone??0)-recoveredEstimated-recoveredBand;this.stats.temporal+=temporal.pixels;this.stats.inverseRecoveredPixels+=global.core-(global.estimatedCore??global.tone??0)-recoveredDirect;this.stats.globalInverseFrames++;if(global.structural){this.stats.structuralCleanupFrames++;this.stats.structuralEstimatedPixels+=global.structural;}if(global.tone){this.stats.toneMatchedFrames++;this.stats.toneCorrectedPixels+=global.tone;}
+        return {data,rect:r,method:temporal.pixels?'motion + deblend':'deblend',recovered:temporal.pixels,preserved,estimatedMask:global.estimatedMask,motionMask:temporal.mask};
+      }this.stats.globalRejectedFrames++;
+      // A calibrated fixed mark losing frame-level evidence must not suddenly
+      // turn into a full rectangular fill. Strong absence preserves the source;
+      // otherwise constrain estimated filling to the established support.
+      const sameOverlay=['x','y','w','h'].every(k=>r[k]===this.globalOverlay.r[k]);
+      if(motionMode&&sameOverlay){
+        this.hint=null;this.maskState=null;this.transparency.reset();
+        const support=Uint8Array.from(this.globalOverlay.core,(v,i)=>v||this.globalOverlay.band[i]);
+        const absent=this.globalOverlay.isAbsent(data,w,h,r);
+        const filled=absent?0:support.reduce((sum,v)=>sum+v,0);
+        if(filled){
+          const anchors=Uint8Array.from(support,v=>!v),plate=new Uint8ClampedArray(r.w*r.h*4);
+          for(let y=0;y<r.h;y++)for(let x=0;x<r.w;x++){const i=y*r.w+x,j=at(w,r.x+x,r.y+y);for(let c=0;c<4;c++)plate[i*4+c]=original[j+c];}
+          const estimated=harmonic(original,w,h,r,anchors,plate,220);
+          for(let y=0;y<r.h;y++)for(let x=0;x<r.w;x++){const i=y*r.w+x;if(!support[i])continue;const j=at(w,r.x+x,r.y+y);for(let c=0;c<3;c++)data[j+c]=estimated[i*4+c];}
+        }
+        for(const source of this.history)source.age++;
+        this.history.unshift({data:original,mask:r,overlaySupport:support,age:1});
+        const keep=Math.max(1,Math.min(this.options.radius??6,12,Math.floor(64*1024*1024/(w*h*4))));this.history.length=Math.min(this.history.length,keep);
+        const area=r.w*r.h;this.stats.frames++;this.stats.selected+=area;this.stats.preserved+=area-filled;this.stats.lighting+=filled;
+        this.stats.uncertainOverlayFrames=(this.stats.uncertainOverlayFrames??0)+1;
+        const counter=absent?'absentOverlayFrames':'boundedOverlayFrames';this.stats[counter]=(this.stats[counter]??0)+1;
+        return {data,rect:r,method:absent?'uncertain · preserved':'bounded contour fill',recovered:0,preserved:area-filled};
+      }
+    }
     let donor=null,plate=null,method='fallback',recovered=0;
     let contrast=0;for(const p of samples)contrast+=Math.abs(p.gx)+Math.abs(p.gy);
     if(this.options.mode!=='balanced'&&contrast/Math.max(1,samples.length)>.5){
@@ -284,6 +334,22 @@ export class BrowserRepair {
     this.stats.temporal+=recovered;this.stats.pattern+=method==='pattern'?modified:0;this.stats.lighting+=method==='lighting'?modified:0;this.stats.fallback+=method==='fallback'?modified-recovered:0;
     return {data,rect:r,method,recovered,preserved};
   }
-  report(){const pct=n=>+(100*n/Math.max(1,this.stats.selected)).toFixed(1);return {...this.stats,preservedCoverage:pct(this.stats.preserved),temporalCoverage:pct(this.stats.temporal),patternCoverage:pct(this.stats.pattern),lightingCoverage:pct(this.stats.lighting),fallbackCoverage:pct(this.stats.fallback)};}
-  dispose(){this.history=[];this.maskState=null;this.hint=null;this.transparency.reset();}
+  recordRGBRefinement(refinement,firstPass){
+    if(!refinement?.pixels)return;
+    if(!this.globalOverlay||!firstPass.estimatedMask||refinement.changedMask.length!==this.globalOverlay.core.length)throw Error('RGB reconstruction requires a calibrated first pass.');
+    for(let i=0;i<refinement.changedMask.length;i++)if(refinement.changedMask[i]&&this.globalOverlay.core[i]&&!firstPass.estimatedMask[i]&&!firstPass.motionMask?.[i]){this.stats.decomposed--;this.stats.inverseRecoveredPixels--;this.stats.lighting++;}
+    this.stats.rgbRefinedFrames=(this.stats.rgbRefinedFrames??0)+1;this.stats.rgbRefinedPixels=(this.stats.rgbRefinedPixels??0)+refinement.pixels;
+  }
+  refineTangents(original,data,w,h,firstPass){
+    const model=this.globalOverlay;
+    if(!model?.tangentNormals||!firstPass.estimatedMask)return null;
+    const result=repairTangents(original,data,w,h,firstPass.rect,model,{preserveMask:firstPass.motionMask,gain:model.opacityGain??1});
+    if(!result?.pixels)return null;
+    for(let i=0;i<result.mask.length;i++)if(result.mask[i]&&(!model.band[i]||firstPass.motionMask?.[i]))throw Error('Tangent refinement cannot replace protected source detail.');
+    this.stats.tangentRefinedFrames=(this.stats.tangentRefinedFrames??0)+1;
+    this.stats.tangentRefinedPixels=(this.stats.tangentRefinedPixels??0)+result.pixels;
+    return result;
+  }
+  report(){const pct=n=>+(100*n/Math.max(1,this.stats.selected)).toFixed(1);return {...this.stats,preservedCoverage:pct(this.stats.preserved),temporalCoverage:pct(this.stats.temporal),patternCoverage:pct(this.stats.pattern),lightingCoverage:pct(this.stats.lighting),fallbackCoverage:pct(this.stats.fallback),decomposedCoverage:pct(this.stats.decomposed)};}
+  dispose(){this.history=[];this.maskState=null;this.hint=null;this.transparency.reset();this.globalOverlay=null;}
 }

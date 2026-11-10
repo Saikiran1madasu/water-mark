@@ -1,0 +1,22 @@
+{
+  "name": "Original experimental matte refiner v1",
+  "owner": "Saikiran1madasu",
+  "license": "Proprietary original project materials; see project LICENSE",
+  "trainedFromScratch": true,
+  "pretrainedWeightsUsed": false,
+  "teacherOutputsUsed": false,
+  "architecture": "training/own_matte_model.py",
+  "parameters": 6818,
+  "bytes": 40185,
+  "sha256": "7d03f891d9a8fe0d62670943ea469ac41afb53986a2207b7f66cca4cc2530618",
+  "input": "Float32 NCHW: RGB, coarse white alpha, support, local x/y coordinates",
+  "output": "Float32 NCHW: refined white alpha and small dark-fringe alpha",
+  "trainingSource": "Unmarked crops from one locally supplied video; no source media is included",
+  "trainingPatches": 384,
+  "validationPatches": 96,
+  "validationFrameIntervalExcludedFromTraining": [
+    83,
+    127
+  ],
+  "limitations": "Experimental translucent-white matte refinement. Not a general opaque/video inpainting model. No invisible-removal guarantee. Active proposals require independent visible-background verification."
+}

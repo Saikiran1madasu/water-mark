@@ -59,3 +59,21 @@ test('full engine preserves new background detail visible through a translucent 
  for(let y=43;y<57;y++)for(let x=61;x<75;x++)if(Math.abs(x-68)+Math.abs(y-50)<7)for(let c=0;c<3;c++){const i=(y*w+x)*4+c;error+=Math.abs(data[i]-clean[i]);count++;}
  assert(error/count<1,'hidden changing detail should be recovered from the translucent input');
 });
+
+test('weak pale-background calibration cannot turn plate errors into a residual logo',()=>{
+ const w=40,r={x:0,y:0,w,h:w},model=new TransparencyModel(),clean=new Uint8ClampedArray(w*w*4),plate=clean.slice(),data=clean.slice(),alpha=new Float32Array(w*w);
+ for(let y=0;y<w;y++)for(let x=0;x<w;x++){
+  const i=y*w+x,j=i*4,inside=Math.abs(x-20)+Math.abs(y-20)<13;alpha[i]=inside?1:0;
+  for(let c=0;c<3;c++){
+   clean[j+c]=230+c;
+   plate[j+c]=clean[j+c]+(inside?2*Math.sin(i*.2):0);
+   data[j+c]=inside?.65*clean[j+c]+.35*255:clean[j+c];
+  }
+  clean[j+3]=plate[j+3]=data[j+3]=255;
+ }
+ const shape={alpha,level:255};for(let n=0;n<12;n++)model.learn(data,w,r,plate,shape);
+ assert(model.counts.some(v=>v>=8),'retain weak evidence for outline validation');
+ const result=model.recover(data,w,r,clean,shape);
+ assert.equal(result.pixels,0);assert.equal(result.plate,clean);
+ model.reset();assert.equal(model.minimumWeights,null);
+});

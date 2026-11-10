@@ -1,0 +1,10 @@
+.runtime/
+*.tar.gz
+.DS_Store
+.venv/
+__pycache__/
+
+.pages/
+.env
+.env.*
+!.env.example

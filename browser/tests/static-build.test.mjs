@@ -2,10 +2,10 @@ import test from 'node:test';import assert from 'node:assert/strict';import fs f
 test('the browser source has no server job calls or localhost engine connection',()=>{
  const app=fs.readFileSync('src/app.js','utf8'),worker=fs.readFileSync('src/worker.js','utf8');
  assert(!app.includes('/api/jobs'));assert(!app.includes('/api/health'));assert(!app.includes('MSK_CONFIG'));
- assert(!worker.includes('fetch('));assert(app.includes("new URL('./browser-worker.js',import.meta.url)"));
+ assert(!worker.includes('fetch('));assert(/new URL\('\.\/browser-worker\.js(?:\?[^']*)?',import\.meta\.url\)/.test(app));
 });
 test('production HTML uses a relative browser module and has no backend config script',()=>{
- const html=fs.readFileSync('public/index.html','utf8');assert(html.includes('type="module" src="./browser-app.js"'));assert(!html.includes('src="./config.js"'));assert(!/\b(src|href)="\/(?!\/)/.test(html));
+ const html=fs.readFileSync('public/index.html','utf8');assert(/type="module" src="\.\/browser-app\.js(?:\?[^"]*)?"/.test(html));assert(!html.includes('src="./config.js"'));assert(!/\b(src|href)="\/(?!\/)/.test(html));
 });
 test('playable comparison ships all actual export assets and identifies the clean reference',()=>{
  const html=fs.readFileSync('public/index.html','utf8');

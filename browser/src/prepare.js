@@ -13,3 +13,15 @@ export async function prepareRepair(engine,samples,readFrame,boxForTime,onProgre
   engine.beginOutput(count);
   return count;
 }
+export async function prepareOverlay(calibrator,samples,readFrame,onProgress=()=>{}){
+  const seen=new Set();let count=0;
+  for await(const sample of samples){
+    if(!sample)continue;
+    try{
+      if(seen.has(sample.timestamp))continue;seen.add(sample.timestamp);
+      const {data,width,height}=readFrame(sample);calibrator.observe(data,width,height,sample.timestamp);onProgress(++count);
+    }finally{sample.close();}
+    if(count===24)break;
+  }
+  const accepted=calibrator.candidates.length,model=calibrator.finalize();return {model,sampled:count,accepted:model?.info?.acceptedFrames??accepted};
+}

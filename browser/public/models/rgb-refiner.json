@@ -1,0 +1,55 @@
+{
+  "name": "Original self-calibrated RGB reconstruction",
+  "owner": "Saikiran1madasu",
+  "modelFile": "own-rgb-v3.onnx",
+  "sha256": "4c405764bb5a78a38a4608de2e1b76d260bad39ff3d5fa8fc56f11d279c7a68b",
+  "bytes": 284647,
+  "parameters": 68507,
+  "initialization": "Fine-tuned from our original v1 RGB checkpoint, which was trained from random initialization. No external pretrained weights or external teacher outputs.",
+  "runtime": "Browser-only ONNX Runtime Web, single-threaded WASM.",
+  "method": "One paired factual/counterfactual inference round; only the uncertain calibrated contour may change. Inverted core pixels and verified original-frame motion contributions are preserved.",
+  "training": "768 paired synthetic-overlay inputs from unmarked areas of the user-supplied video; clean source targets. Frame interval 83\u2013127 held out for 192 validation pairs.",
+  "limitations": "One-video research model for small calibrated translucent white marks. Visible reconstruction traces remain possible. Not a universal or guaranteed invisible-removal model.",
+  "controlledSequence": {
+    "frames": 240,
+    "beforeMaskedMAE": 1.6422610763163998,
+    "afterMaskedMAE": 1.2097695816902498,
+    "beforeTemporalResidualMAE": 1.2078656429160006,
+    "afterTemporalResidualMAE": 0.8976899611677435,
+    "improvedFrames": 226,
+    "note": "Related one-video synthetic-overlay experiment, not hidden ground truth for the actual marked clip.",
+    "engineVersion": "0.6.3"
+  },
+  "uncertainFramePolicy": "In motion/reconstruction mode, strong absence evidence preserves source pixels; otherwise rejected calibrated frames use estimation confined to the calibrated fixed-mark support. This does not guarantee invisible removal.",
+  "compressedSequence": {
+    "frames": 240,
+    "codec": "H.264 YUV420p, CRF24",
+    "model": "Same retained v3 graph in both comparisons",
+    "beforeBoundedPolicyMaskedMAE": 3.3086464857341684,
+    "afterBoundedPolicyMaskedMAE": 3.1107844274336967,
+    "beforeTemporalResidualMAE": 2.5507367064306643,
+    "afterTemporalResidualMAE": 2.403944759392388,
+    "note": "Related one-video synthetic control; not actual hidden-ground-truth accuracy."
+  },
+  "fineMotionComparison": {
+    "previousVersion": "0.6.2",
+    "currentVersion": "0.6.3",
+    "rawMaskedMAE": [
+      1.2102306116137014,
+      1.2097695816902498
+    ],
+    "rawTemporalResidualMAE": [
+      0.8981810664360607,
+      0.8976899611677435
+    ],
+    "compressedMaskedMAE": [
+      3.1107844274336967,
+      3.11080375782881
+    ],
+    "compressedTemporalResidualMAE": [
+      2.403944759392388,
+      2.4039952287085
+    ],
+    "note": "Small improvement on the related raw control and near-zero, slightly worse compressed-control scores. Does not resolve actual visible patches."
+  }
+}

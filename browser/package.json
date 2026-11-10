@@ -1,12 +1,12 @@
 {
   "name": "msk-browser-video-removal",
-  "version": "0.1.0",
+  "version": "0.6.3",
   "private": true,
   "scripts": {
     "build": "node scripts/build.mjs",
     "start": "npm run build && node scripts/serve.mjs",
     "serve": "node scripts/serve.mjs",
-    "check": "node --check src/app.js && node --check src/worker.js && node --check src/repair.js && node --check src/illumination.js && node --check src/stability.js && node --check src/example-player.js && node --check src/blend.js && node --check src/transparency.js && node --check src/prepare.js && node --check src/playback.js",
+    "check": "node --check src/app.js && node --check src/worker.js && node --check src/repair.js && node --check src/illumination.js && node --check src/stability.js && node --check src/example-player.js && node --check src/blend.js && node --check src/transparency.js && node --check src/prepare.js && node --check src/playback.js && node --check src/overlay.js && node --check src/residual-cleanup.js && node --check scripts/serve.mjs && node --check src/tone.js && node --check src/boundary.js && node --check src/structure.js && node --check src/own-matte.js && node --check src/neural-edge.js && node --check src/motion-support.js && node --check src/rgb-refiner.js && node --check training/generate_rgb_pairs.mjs && node --check training/generate_codec_pairs.mjs && node --check scripts/render-restoration-evaluation.mjs && node --check src/tangent-normals.js && node --check src/tangent-repair.js",
     "test": "node --test tests/*.test.mjs",
     "build:test": "node scripts/build-test.mjs"
   },
@@ -19,7 +19,8 @@
   "keywords": [],
   "type": "module",
   "dependencies": {
-    "mediabunny": "1.65.0"
+    "mediabunny": "1.65.0",
+    "onnxruntime-web": "1.31.1"
   },
   "devDependencies": {
     "esbuild": "0.28.2"
