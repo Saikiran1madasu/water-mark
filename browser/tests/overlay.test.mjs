@@ -68,6 +68,12 @@ test('opacity adaptation follows a modest transparency change without flattening
   assert(a<b*.4,`opacity ${opacity}: ${a} versus ${b}`);
  }
 });
+test('per-frame opacity feedback remains bounded and preserves uncertain frames',()=>{
+ const model=calibrate(),f=fixture(5,{opacity:.33}),base=model.frameGain(f.data,w,h,r),gain=model.feedbackGain(f.data,w,h,r,base);
+ assert(gain>=.88&&gain<=1.12);assert(Math.abs(gain-base)<=.045);
+ const noisy=f.data.slice();for(let i=0;i<noisy.length;i+=4){noisy[i]=128;noisy[i+1]=128;noisy[i+2]=128;}
+ assert.equal(model.feedbackGain(noisy,w,h,r,base),base,'unqualified evidence must not move opacity');
+});
 test('a tight selection retries with a bounded clean background ring and retains selection identity',()=>{
  const tight={x:47,y:38,w:27,h:27},plain=new OverlayCalibrator(tight),cal=new SelectionOverlayCalibrator(tight,w,h);
  for(let n=0;n<8;n++){const f=fixture(n);plain.observe(f.data,w,h,n);cal.observe(f.data,w,h,n);}

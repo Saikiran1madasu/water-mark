@@ -236,6 +236,40 @@ export class CalibratedOverlay{
     if(deviations[Math.floor(deviations.length/2)]>tolerance||gain<.8||gain>1.2)return 1;
     return Math.abs(gain-1)<.015?1:clamp(gain,.88,1.12);
   }
+  feedbackGain(data,w,h,r,baseGain){
+    // Independently score a small range of inverse-alpha candidates against
+    // the visible local colour line. This is a per-frame feedback check, not
+    // a borrowed watermark profile or a replacement of image texture.
+    const line=fitColorLine(data,w,h,r,this.level);
+    if(!line||line.condition<18||line.error>2.2||line.variance<16||line.variance/Math.max(1,line.total)<.9)return baseGain;
+    const samples=[];
+    for(let y=0;y<r.h;y++)for(let x=0;x<r.w;x++){
+      const i=y*r.w+x;if(!this.core[i]||this.alpha[i]<.05)continue;
+      const j=((r.y+y)*w+r.x+x)*4,d=[0,1,2].map(c=>data[j+c]-line.mean[c]),along=dot(d,line.v);
+      const rawResidual=Math.sqrt(d.reduce((sum,v,c)=>sum+(v-along*line.v[c])**2,0)/3);
+      if(rawResidual<3.5)samples.push({i,j});
+    }
+    if(samples.length<Math.max(30,this.info.corePixels*.8))return baseGain;
+    const score=gain=>{
+      let total=0;
+      for(const {i,j} of samples){
+        const alpha=this.alpha[i]*gain;if(alpha>=.65)return Infinity;
+        const d=[0,1,2].map(c=>(data[j+c]-alpha*this.level)/(1-alpha)-line.mean[c]),along=dot(d,line.v);
+        total+=Math.min(25,d.reduce((sum,v,c)=>sum+(v-along*line.v[c])**2,0)/3);
+      }
+      return total/samples.length;
+    };
+    let low=clamp(baseGain-.06,.88,1.12),high=clamp(baseGain+.06,.88,1.12);
+    for(let step=0;step<5;step++){
+      const left=(2*low+high)/3,right=(low+2*high)/3;
+      if(score(left)<=score(right))high=right;else low=left;
+    }
+    const candidate=(low+high)/2,baseline=score(baseGain),improved=score(candidate);
+    // Reject weak or unexpectedly large moves; keep adjacent frames stable.
+    if(!Number.isFinite(improved)||improved>baseline*.94||Math.abs(candidate-baseGain)>.045)return baseGain;
+    this.info.feedbackGainFrames=(this.info.feedbackGainFrames||0)+1;
+    return candidate;
+  }
   evidence(data,w,h,r){
     if(['x','y','w','h'].some(k=>r[k]!==this.r[k]))return false;
     const line=fitColorLine(data,w,h,r,this.level);
@@ -275,7 +309,7 @@ export class CalibratedOverlay{
     if(!this.evidence(data,w,h,r)){this.resetFrameState();return null;}
     // Refine only a scalar opacity using visible background chroma. Preserve
     // source texture; never project the image itself onto the fitted color line.
-    const measured=this.frameGain(data,w,h,r);
+    const measured=this.feedbackGain(data,w,h,r,this.frameGain(data,w,h,r));
     this.opacityGain=this.opacityGain===undefined?measured:this.opacityGain*.8+measured*.2;
     const gain=this.opacityGain;
     const n=r.w*r.h;let current=new Float32Array(n*3);
